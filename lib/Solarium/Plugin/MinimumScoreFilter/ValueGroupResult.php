@@ -30,67 +30,79 @@
  *
  * @copyright Copyright 2011 Bas de Nooijer <solarium@raspberry.nl>
  * @license http://github.com/basdenooijer/solarium/raw/master/COPYING
+ *
  * @link http://www.solarium-project.org/
  */
 
 /**
  * @namespace
  */
-namespace Solarium\QueryType\Analysis\Query;
 
-use Solarium\Core\Query\Query as BaseQuery;
+namespace Solarium\Plugin\MinimumScoreFilter;
+
+use Solarium\QueryType\Select\Result\Grouping\ValueGroup as StandardValueGroup;
 
 /**
- * Base class for Analysis queries
+ * MinimumScoreFilter ValueGroupResult.
  */
-abstract class Query extends BaseQuery
+class ValueGroupResult extends StandardValueGroup
 {
     /**
-     * Set the query string
-     *
-     * When present, the text that will be analyzed. The analysis will mimic the query-time analysis.
-     *
-     * @param  string $query
-     * @param  array  $bind  Optional bind values for placeholders in the query string
-     * @return self   Provides fluent interface
+     * @var float
      */
-    public function setQuery($query, $bind = null)
+    protected static $overallMaximumScore;
+
+    /**
+     * @var string
+     */
+    protected $filterMode;
+
+    /**
+     * @var float
+     */
+    protected $filterRatio;
+
+    /**
+     * @var boolean
+     */
+    protected $filtered = false;
+
+    /**
+     * Constructor.
+     *
+     * @param string $value
+     * @param int    $numFound
+     * @param int    $start
+     * @param array  $documents
+     * @param int    $maximumScore
+     * @param Query  $query
+     */
+    public function __construct($value, $numFound, $start, $documents, $maximumScore, $query)
     {
-        if (!is_null($bind)) {
-            $query = $this->getHelper()->assemble($query, $bind);
+        $this->filterMode = $query->getFilterMode();
+        $this->filterRatio = $query->getFilterRatio();
+
+        // Use the maximumScore of the first group as maximum for all groups
+        if ($maximumScore > self::$overallMaximumScore) {
+            self::$overallMaximumScore = $maximumScore;
         }
 
-        return $this->setOption('query', trim($query));
+        parent::__construct($value, $numFound, $start, $documents);
     }
 
     /**
-     * Get the query string
+     * Get all documents, apply filter at first use.
      *
-     * @return string
+     * @return array
      */
-    public function getQuery()
+    public function getDocuments()
     {
-        return $this->getOption('query');
-    }
+        if (!$this->filtered) {
+            $filter = new Filter();
+            $this->documents = $filter->filterDocuments($this->documents, self::$overallMaximumScore, $this->filterRatio, $this->filterMode);
+            $this->filtered = true;
+        }
 
-    /**
-     * Set the showmatch option
-     *
-     * @param  boolean $show
-     * @return self    Provides fluent interface
-     */
-    public function setShowMatch($show)
-    {
-        return $this->setOption('showmatch', $show);
-    }
-
-    /**
-     * Get the showmatch option
-     *
-     * @return mixed
-     */
-    public function getShowMatch()
-    {
-        return $this->getOption('showmatch');
+        return $this->documents;
     }
 }

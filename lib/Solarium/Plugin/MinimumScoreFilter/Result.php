@@ -1,6 +1,6 @@
 <?php
 /**
- * Copyright 2011 Bas de Nooijer. All rights reserved.
+ * Copyright 2014 Bas de Nooijer. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -28,74 +28,42 @@
  * those of the authors and should not be interpreted as representing official
  * policies, either expressed or implied, of the copyright holder.
  *
- * @copyright Copyright 2011 Bas de Nooijer <solarium@raspberry.nl>
+ * @copyright Copyright 2014 Bas de Nooijer <solarium@raspberry.nl>
  * @license http://github.com/basdenooijer/solarium/raw/master/COPYING
+ *
  * @link http://www.solarium-project.org/
  */
 
 /**
  * @namespace
  */
-namespace Solarium\Core\Query;
+
+namespace Solarium\Plugin\MinimumScoreFilter;
+
+use Solarium\QueryType\Select\Result\Result as SelectResult;
 
 /**
- * Abstract class for response parsers
+ * Minimumscore filter query result.
  *
- * Base class with shared functionality for querytype responseparser implementations
+ * Extends select query result, adds filtering / marking
  */
-abstract class ResponseParser
+class Result extends SelectResult
 {
     /**
-     * Converts a flat key-value array (alternating rows) as used in Solr JSON results to a real key value array
+     * Map parser data into properties.
      *
-     * @param $data
-     * @return array
+     * @param array $mapData
      */
-    public function convertToKeyValueArray($data)
+    protected function mapData($mapData)
     {
-        // key counter to convert values to arrays when keys are re-used
-        $keys = array();
-
-        $result = array();
-        for ($i = 0; $i < count($data); $i += 2) {
-
-            $key  = $data[$i];
-            $value = $data[$i+1];
-            if (array_key_exists($key, $keys)) {
-                if ($keys[$key] == 1) {
-                    $result[$key] = array($result[$key]);
-                }
-                $result[$key][] = $value;
-                $keys[$key]++;
-            } else {
-                $keys[$key] = 1;
-                $result[$key] = $value;
+        foreach ($mapData as $key => $data) {
+            if ($key == 'documents') {
+                $filter = new Filter();
+                $mode = $this->getQuery()->getFilterMode();
+                $ratio = $this->getQuery()->getFilterRatio();
+                $data = $filter->filterDocuments($data, $mapData['maxscore'], $ratio, $mode);
             }
+            $this->$key = $data;
         }
-
-        return $result;
-    }
-
-    /**
-     * Parses header data (if available) and adds it to result data
-     *
-     * @param  array $data
-     * @param  array $result
-     * @return mixed
-     */
-    public function addHeaderInfo($data, $result)
-    {
-        $status = null;
-        $queryTime = null;
-
-        if (isset($data['responseHeader'])) {
-            $status = $data['responseHeader']['status'];
-            $queryTime = $data['responseHeader']['QTime'];
-        }
-
-        $result['status'] = $status;
-        $result['queryTime'] = $queryTime;
-
-        return $result;
     }
 }
